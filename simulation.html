@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="cs">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RC Car Double-Pump Brake Simulator</title>
+    <style>
+        :root {
+            --bg-dark: #121212;
+            --panel-bg: #1e1e1e;
+            --text-main: #e0e0e0;
+            --accent: #4caf50;
+            --accent-glow: rgba(76, 175, 80, 0.4);
+            --danger: #f44336;
+            --warning: #ffb300;
+            --info: #2196f3;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: auto 1fr;
+            gap: 20px;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            grid-column: 1 / -1;
+            text-align: center;
+            margin: 0;
+            padding: 10px;
+            color: #fff;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+            font-weight: 300;
+            letter-spacing: 2px;
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-title {
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 10px;
+        }
+
+        /* Controls Panel */
+        .controls-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 30px;
+        }
+
+        .joystick-wrapper {
+            position: relative;
+            width: 80px;
+            height: 300px;
+            background: #2a2a2a;
+            border-radius: 40px;
+            box-shadow: inset 0 5px 15px rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .joystick-track {
+            width: 4px;
+            height: 260px;
+            background: rgba(255, 255, 255, 0.1);
+            position: relative;
+        }
+
+        .joystick-knob {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #444, #222);
+            border-radius: 50%;
+            position: absolute;
+            left: -28px;
+            top: 50%;
+            transform: translateY(-50%);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5), inset 0 2px 5px rgba(255, 255, 255, 0.2);
+            cursor: grab;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border: 2px solid #555;
+            transition: border-color 0.2s;
+        }
+
+        .joystick-knob:active {
+            cursor: grabbing;
+            border-color: var(--accent);
+            box-shadow: 0 0 15px var(--accent-glow);
+        }
+
+        .joystick-knob::after {
+            content: '';
+            width: 20px;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+        }
+
+        .joystick-label {
+            position: absolute;
+            font-weight: bold;
+            color: #777;
+            font-size: 0.8rem;
+        }
+
+        .label-fwd {
+            top: -25px;
+        }
+
+        .label-rev {
+            bottom: -25px;
+        }
+
+        .value-display {
+            font-size: 2rem;
+            font-family: monospace;
+            color: var(--accent);
+            text-shadow: 0 0 10px var(--accent-glow);
+            background: #111;
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            min-width: 120px;
+            text-align: center;
+        }
+
+        .status-indicators {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            width: 100%;
+        }
+
+        .indicator {
+            background: #111;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #333;
+            transition: all 0.3s;
+        }
+
+        .indicator-label {
+            display: block;
+            font-size: 0.75rem;
+            color: #888;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+
+        .indicator-value {
+            display: block;
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+
+        /* Status Colors */
+        .state-active {
+            color: var(--accent);
+        }
+
+        .state-braking {
+            color: var(--danger);
+            text-shadow: 0 0 10px rgba(244, 67, 54, 0.4);
+        }
+
+        .state-dwell {
+            color: var(--warning);
+        }
+
+        .armed-true {
+            color: var(--info);
+            text-shadow: 0 0 10px rgba(33, 150, 243, 0.4);
+        }
+
+        .armed-false {
+            color: #555;
+        }
+
+        /* Chart Panel */
+        .chart-container {
+            flex-grow: 1;
+            position: relative;
+            background: #111;
+            border-radius: 8px;
+            border: 1px solid #333;
+            overflow: hidden;
+        }
+
+        canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 15px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+        }
+
+        .c-input {
+            background: #2196f3;
+        }
+
+        .c-output {
+            background: #f44336;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>RC Braking Logic Simulator</h1>
+
+    <div class="panel">
+        <h2 class="panel-title">Controller Input</h2>
+        <div class="controls-container">
+            <div class="joystick-wrapper">
+                <div class="joystick-label label-fwd">+ FWD</div>
+                <div class="joystick-track">
+                    <div class="joystick-knob" id="joystick"></div>
+                </div>
+                <div class="joystick-label label-rev">- REV / BRK</div>
+            </div>
+
+            <div class="value-display" id="throttleVal">0.0 %</div>
+
+            <div class="status-indicators">
+                <div class="indicator" id="ind-state">
+                    <span class="indicator-label">RC State</span>
+                    <span class="indicator-value state-active" id="stateVal">ACTIVE</span>
+                </div>
+                <div class="indicator" id="ind-armed">
+                    <span class="indicator-label">Reverse Armed</span>
+                    <span class="indicator-value armed-true" id="armedVal">TRUE</span>
+                </div>
+                <div class="indicator" id="ind-timer">
+                    <span class="indicator-label">Dwell Timer</span>
+                    <span class="indicator-value" id="timerVal">0 ms</span>
+                </div>
+                <div class="indicator" id="ind-output">
+                    <span class="indicator-label">ESC Output</span>
+                    <span class="indicator-value" id="outputVal">0.0 %</span>
+                </div>
+            </div>
+
+            <p style="color:#888; font-size: 0.85rem; text-align: center; max-width: 80%;">
+                <strong>Instrukce:</strong> Zatáhni za páčku nahoru (jízda vpřed). Zkus ji z jízdy vpřed rychle strhnout
+                dolů (Brzda). Sleduj jak se ESC výstup zachová. Následně pusť páčku do neutrálu a počkej 500ms na Nabití
+                Zpátečky, než znova zkusíš couvat.
+            </p>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2 class="panel-title">Signal Telemetry</h2>
+        <div class="chart-container">
+            <canvas id="telemetryChart"></canvas>
+        </div>
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color c-input"></div>
+                <span>Joystick (Input)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color c-output"></div>
+                <span>ESC Signal (Output)</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Vlozeni Chart.js ze CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        // --- 1. SIMULACE C++ LOGIKY ---
+
+        const DEADBAND = 5.0;
+        const NEUTRAL_DWELL_MS = 500;
+        const LOOP_INTERVAL_MS = 20; // 50 Hz simulacni smycka
+
+        // Odpovídá enum RCState v C++
+        const STATES = {
+            ACTIVE: 'ACTIVE',
+            BRAKING: 'BRAKING',
+            DWELL: 'DWELL'
+        };
+
+        let simState = {
+            currentState: STATES.ACTIVE,
+            reverseArmed: true,
+            stateEntryTime: Date.now(),
+            rawInput: 0.0,
+            safeOutput: 0.0
+        };
+
+        function changeState(newState) {
+            if (simState.currentState !== newState) {
+                simState.currentState = newState;
+                simState.stateEntryTime = Date.now();
+                updateUIState();
+            }
+        }
+
+        // Stejná logika jako void RCStateMachine::update()
+        function updateLogic() {
+            const raw = simState.rawInput;
+            const timeInState = Date.now() - simState.stateEntryTime;
+
+            switch (simState.currentState) {
+                case STATES.ACTIVE:
+                    if (raw > DEADBAND) {
+                        simState.reverseArmed = false;
+                        // Slew rate by normálně zpomaloval zrychlení, zde ukážeme natvrdo
+                        // Expo zrychlení zanedbáme pro vizualizaci
+                        simState.safeOutput = raw;
+                    } else if (raw < -DEADBAND) {
+                        if (simState.reverseArmed) {
+                            simState.safeOutput = raw; // Opravdové couvání
+                        } else {
+                            changeState(STATES.BRAKING);
+                        }
+                    } else {
+                        simState.safeOutput = raw; // Neutrál
+                    }
+                    break;
+
+                case STATES.BRAKING:
+                    if (raw < -DEADBAND) {
+                        // BRAKING - Pouštíme absolutně surový signál MÍNUS na ESC bez slew rate/expo
+                        simState.safeOutput = raw;
+                    } else if (Math.abs(raw) <= DEADBAND) {
+                        changeState(STATES.DWELL);
+                    } else {
+                        changeState(STATES.ACTIVE);
+                    }
+                    break;
+
+                case STATES.DWELL:
+                    if (raw > DEADBAND) {
+                        changeState(STATES.ACTIVE);
+                    } else if (raw < -DEADBAND) {
+                        if (timeInState >= NEUTRAL_DWELL_MS) {
+                            simState.reverseArmed = true;
+                            changeState(STATES.ACTIVE);
+                        } else {
+                            // Ještě neuplynulo 500ms, držíme vynucený NULA neutrál (ESC necouve)
+                            simState.safeOutput = 0.0;
+                        }
+                    } else {
+                        if (timeInState >= NEUTRAL_DWELL_MS) {
+                            simState.reverseArmed = true;
+                            changeState(STATES.ACTIVE);
+                        } else {
+                            // Čekání v neutrálu
+                            simState.safeOutput = 0.0;
+                        }
+                    }
+
+                    // Update timer UI jen pro dwell
+                    if (simState.currentState === STATES.DWELL) {
+                        document.getElementById('timerVal').innerText = `${Math.min(timeInState, NEUTRAL_DWELL_MS)} ms`;
+                    }
+                    break;
+            }
+
+            if (simState.currentState !== STATES.DWELL) {
+                document.getElementById('timerVal').innerText = `0 ms`;
+            }
+
+            updateUI();
+        }
+
+        setInterval(updateLogic, LOOP_INTERVAL_MS);
+
+
+        // --- 2. UŽIVATELSKÉ ROZHRANÍ (JOYSTICK) ---
+
+        const knob = document.getElementById('joystick');
+        let isDragging = false;
+        const maxTravel = 130; // 260px track / 2
+
+        knob.addEventListener('mousedown', () => {
+            isDragging = true;
+            initAudio(); // Prohlížeče vyžadují interakci uživatele pro start audia
+        });
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+            // Snapping back to 0
+            knob.style.top = '50%';
+            simState.rawInput = 0.0;
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const trackRect = knob.parentElement.getBoundingClientRect();
+            // Y souřadnice relativně k ose tracku (0 = střed)
+            let y = e.clientY - (trackRect.top + trackRect.height / 2);
+
+            y = Math.max(-maxTravel, Math.min(maxTravel, y));
+            knob.style.top = `calc(50% + ${y}px)`;
+
+            // Převod na procenta -100 až 100. Pozor, UI y jde dolů (kladné), my chceme páčka nahoru = FWD (+)
+            // Takže reverzujeme y
+            simState.rawInput = -(y / maxTravel) * 100;
+        });
+
+
+        // --- 3. GRAF TELEMETRIE ---
+
+        const ctx = document.getElementById('telemetryChart').getContext('2d');
+        const MAX_POINTS = 100;
+
+        let chartData = {
+            labels: Array(MAX_POINTS).fill(''),
+            datasets: [
+                {
+                    label: 'Input (Joystick)',
+                    data: Array(MAX_POINTS).fill(0),
+                    borderColor: '#2196f3',
+                    borderWidth: 2,
+                    tension: 0.1,
+                    pointRadius: 0
+                },
+                {
+                    label: 'Output (ESC)',
+                    data: Array(MAX_POINTS).fill(0),
+                    borderColor: '#f44336',
+                    borderWidth: 3,
+                    borderDash: [5, 5],
+                    tension: 0.1,
+                    pointRadius: 0
+                }
+            ]
+        };
+
+        const config = {
+            type: 'line',
+            data: chartData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                scales: {
+                    y: {
+                        min: -110,
+                        max: 110,
+                        grid: { color: '#333' },
+                        ticks: { color: '#aaa' }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { display: false }
+                    }
+                },
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        };
+
+        const chart = new Chart(ctx, config);
+
+        // --- 4. ZVUKOVÝ ENGINE (Web Audio API) ---
+        let audioCtx;
+        let motorOsc, motorFilter, motorGain;
+        let brakeOsc, brakeGain;
+        let reverseBuzzerOsc, reverseBuzzerGain;
+
+        function initAudio() {
+            if (audioCtx) return; // Již spuštěno
+
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+            // --- Hlavní motor (Sawtooth s LowPass fitrem pro vrčivý zvuk) ---
+            motorOsc = audioCtx.createOscillator();
+            motorOsc.type = 'sawtooth';
+            motorOsc.frequency.value = 50; // Základní bublání
+
+            motorFilter = audioCtx.createBiquadFilter();
+            motorFilter.type = 'lowpass';
+            motorFilter.frequency.value = 200; // Oříznutí výšek
+
+            motorGain = audioCtx.createGain();
+            motorGain.gain.value = 0.0; // Na začátku ticho
+
+            motorOsc.connect(motorFilter);
+            motorFilter.connect(motorGain);
+            motorGain.connect(audioCtx.destination);
+            motorOsc.start();
+
+            // --- Pískání Brzdy ---
+            brakeOsc = audioCtx.createOscillator();
+            brakeOsc.type = 'triangle';
+            brakeOsc.frequency.value = 150;
+
+            brakeGain = audioCtx.createGain();
+            brakeGain.gain.value = 0.0;
+
+            brakeOsc.connect(brakeGain);
+            brakeGain.connect(audioCtx.destination);
+            brakeOsc.start();
+
+            // --- Pípání couvačky ---
+            reverseBuzzerOsc = audioCtx.createOscillator();
+            reverseBuzzerOsc.type = 'square';
+            reverseBuzzerOsc.frequency.value = 2500; // Ostrý tón
+
+            reverseBuzzerGain = audioCtx.createGain();
+            reverseBuzzerGain.gain.value = 0.0;
+
+            reverseBuzzerOsc.connect(reverseBuzzerGain);
+            reverseBuzzerGain.connect(audioCtx.destination);
+            reverseBuzzerOsc.start();
+        }
+
+        // Pípání couvačky (blikání nahlas a potichu)
+        let buzzerInterval = 0;
+
+        function updateAudio() {
+            if (!audioCtx) return;
+
+            let speed = Math.abs(simState.safeOutput);
+
+            // Pokud naplno brzdíme crawler ESC drag-brakem, motor se netočí, ale stojí.
+            // Z ticha se tak ozývá jen pískání PWM brzdy.
+            if (simState.currentState === STATES.BRAKING) {
+                speed = 0;
+            }
+
+            // Hlavní motor (Otáčky nahoru s plynem)
+            if (speed > 5) {
+                // Modulace od 80 Hz (pomalý pojezd) do 600 Hz (plný knedlík)
+                const targetFreq = 80 + (speed / 100) * 520;
+                motorOsc.frequency.setTargetAtTime(targetFreq, audioCtx.currentTime, 0.05);
+                motorFilter.frequency.setTargetAtTime(100 + speed * 15, audioCtx.currentTime, 0.05); // Větší otáčky = více křiku
+                motorGain.gain.setTargetAtTime(0.1 + (speed / 100) * 0.2, audioCtx.currentTime, 0.05);
+            } else {
+                // Volnoběh potichu
+                motorOsc.frequency.setTargetAtTime(50, audioCtx.currentTime, 0.1);
+                motorGain.gain.setTargetAtTime(0.02, audioCtx.currentTime, 0.1);
+            }
+
+            // Brzda (Když je v režimu BRAKING)
+            if (simState.currentState === STATES.BRAKING && simState.rawInput < -DEADBAND) {
+                // Intenzita pískání dle toho, jak moc drží joystick dozadu
+                const brakeForce = Math.abs(simState.rawInput);
+                const targetBrakeFreq = 1500 + brakeForce * 5;
+                brakeOsc.frequency.setTargetAtTime(targetBrakeFreq, audioCtx.currentTime, 0.02);
+                brakeGain.gain.setTargetAtTime(0.08 * (brakeForce / 100), audioCtx.currentTime, 0.01);
+            } else {
+                brakeGain.gain.setTargetAtTime(0.0, audioCtx.currentTime, 0.05);
+            }
+
+            // Zvuk couvání
+            if (simState.safeOutput < -DEADBAND && simState.currentState === STATES.ACTIVE) {
+                // Blikání zvuku - jednoduchý time mód
+                const now = Date.now();
+                if (now - buzzerInterval > 300) {
+                    buzzerInterval = now;
+                    // Přepne z 0 na 0.05 a naopak
+                    const currentVol = reverseBuzzerGain.gain.value;
+                    reverseBuzzerGain.gain.setValueAtTime(currentVol > 0.01 ? 0 : 0.03, audioCtx.currentTime);
+                }
+            } else {
+                reverseBuzzerGain.gain.setValueAtTime(0, audioCtx.currentTime);
+            }
+        }
+
+        // --- 5. OBNOVENÍ UI ---
+
+        function updateUIState() {
+            const stEl = document.getElementById('stateVal');
+            stEl.innerText = simState.currentState;
+            stEl.className = 'indicator-value';
+            if (simState.currentState === STATES.ACTIVE) stEl.classList.add('state-active');
+            if (simState.currentState === STATES.BRAKING) stEl.classList.add('state-braking');
+            if (simState.currentState === STATES.DWELL) stEl.classList.add('state-dwell');
+        }
+
+        function updateUI() {
+            document.getElementById('throttleVal').innerText = `${simState.rawInput.toFixed(1)} %`;
+            document.getElementById('outputVal').innerText = `${simState.safeOutput.toFixed(1)} %`;
+
+            const arEl = document.getElementById('armedVal');
+            arEl.innerText = simState.reverseArmed ? "TRUE" : "FALSE";
+            arEl.className = `indicator-value armed-${simState.reverseArmed}`;
+
+            // Chart update
+            chartData.datasets[0].data.shift();
+            chartData.datasets[0].data.push(simState.rawInput);
+
+            chartData.datasets[1].data.shift();
+            chartData.datasets[1].data.push(simState.safeOutput);
+
+            chart.update();
+
+            // Zvukový update
+            updateAudio();
+        }
+
+    </script>
+</body>
+
+</html>
